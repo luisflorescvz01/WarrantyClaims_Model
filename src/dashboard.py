@@ -41,6 +41,8 @@ from train import (
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_PATH = ROOT / "reports" / "dashboard.html"
+# Copy served by GitHub Pages (Settings -> Pages -> main, /docs folder)
+DOCS_PATH = ROOT / "docs" / "index.html"
 
 GREEN = "#1a9850"
 RED = "#d73027"
@@ -372,9 +374,13 @@ def main() -> None:
     d["savings"] = d["cost_no_model"] - d["cost_tuned"]
     d["savings_pct"] = d["savings"] / d["cost_no_model"]
 
+    html = build_html(d)
     OUT_PATH.parent.mkdir(exist_ok=True)
-    OUT_PATH.write_text(build_html(d), encoding="utf-8")
+    OUT_PATH.write_text(html, encoding="utf-8")
     print(f"Dashboard written -> {OUT_PATH}")
+    DOCS_PATH.parent.mkdir(exist_ok=True)
+    DOCS_PATH.write_text(html, encoding="utf-8")
+    print(f"GitHub Pages copy -> {DOCS_PATH}")
 
     if "--no-open" not in sys.argv:
         webbrowser.open(OUT_PATH.as_uri())
