@@ -1,0 +1,29 @@
+LogisticRegression     CV ROC-AUC: 0.778  params: {'C': 0.03}
+RandomForest           CV ROC-AUC: 0.769  params: {'max_depth': 8, 'min_samples_leaf': 1, 'n_estimators': 600}
+HistGradientBoosting   CV ROC-AUC: 0.752  params: {'learning_rate': 0.05, 'max_iter': 150, 'max_leaf_nodes': 15}
+
+Selected model: LogisticRegression (CV ROC-AUC 0.778)
+Cost-optimal threshold: 0.55 (investigation $500/claim, review capacity 30% of claims)
+
+============================================================
+Held-out test set (250 claims)
+ROC-AUC: 0.776   PR-AUC: 0.551
+
+Confusion matrix at threshold 0.55 (rows=true, cols=pred [Valid, Invalid]):
+[[159  29]
+ [ 23  39]]
+              precision    recall  f1-score   support
+
+       Valid      0.874     0.846     0.859       188
+     Invalid      0.574     0.629     0.600        62
+
+    accuracy                          0.792       250
+   macro avg      0.724     0.737     0.730       250
+weighted avg      0.799     0.792     0.795       250
+
+------------------------------------------------------------
+Dollar-cost analysis (test set, investigation $500, capacity 30%):
+  Pay all claims (no model):      $   3,644,060
+  Model @ default 0.50 threshold: $   1,003,440  (flags 31% of claims)
+  Model @ tuned 0.55 threshold:   $   1,192,680  (flags 27% of claims)
+  Estimated savings vs no model:  $   2,451,380 (67.3%)
