@@ -186,6 +186,11 @@ def build_html(d: dict) -> str:
   .green {{ color:{GREEN}; }} .red {{ color:{RED}; }} .blue {{ color:{BLUE}; }}
   section {{ background:#fff; border-radius:10px; padding:22px 24px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-bottom:22px; }}
   section h2 {{ font-size:18px; margin:0 0 6px; }}
+  .try-btn {{ display:block; background:{BLUE}; color:#fff; text-decoration:none;
+    border-radius:10px; padding:14px 20px; font-weight:600; font-size:16px;
+    margin-bottom:22px; box-shadow:0 1px 3px rgba(0,0,0,.15); }}
+  .try-btn:hover {{ background:#1c5cab; }}
+  .try-btn span {{ display:block; font-weight:400; font-size:13px; opacity:.85; margin-top:2px; }}
   .intro {{ border-left:4px solid {BLUE}; }}
   .intro-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:4px 28px; }}
   .intro-grid h3 {{ font-size:14.5px; margin:12px 0 4px; color:{BLUE}; }}
@@ -221,6 +226,9 @@ def build_html(d: dict) -> str:
   <h1>Warranty Claim Model - Performance Dashboard</h1>
   <p class="sub">How the model performs on {d["n_test"]} claims it has never seen before
      (model: {d["model_name"]}, generated from models/best_model.joblib)</p>
+
+  <a class="try-btn" href="tester.html">Try the model yourself &rarr;
+    <span>enter a claim in the interactive simulator and watch it get scored live</span></a>
 
   <section class="intro">
     <h2>What is this?</h2>

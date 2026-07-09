@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warranty Claim Model - Claim Simulator</title>
+<style>
+  :root { color-scheme: light; }
+  .viz-root {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7;
+    --pos: #e34948;   /* pushes score toward invalid */
+    --neg: #2a78d6;   /* pushes score toward valid   */
+    --status-good: #0ca30c; --status-critical: #d03b3b;
+    --border: rgba(11,11,11,0.10);
+  }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         margin:0; background:var(--page); color:var(--ink); }
+  .wrap { max-width:1100px; margin:0 auto; padding:26px 20px 60px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 8px; font-size:14px; }
+  .sub a { color:var(--neg); }
+  .lede { color:var(--ink-2); font-size:14px; max-width:78ch; margin:0 0 18px; line-height:1.5; }
+  .examples { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center; }
+  .examples span { font-size:13px; color:var(--ink-2); }
+  .examples button { border:1px solid var(--border); background:var(--surface-1);
+    border-radius:8px; padding:8px 14px; font-size:13.5px; cursor:pointer; color:var(--ink); }
+  .examples button:hover { border-color:var(--neg); color:var(--neg); }
+  .cols { display:grid; grid-template-columns: 1fr 380px; gap:22px; align-items:start; }
+  @media (max-width:900px) { .cols { grid-template-columns:1fr; }
+    .result { position:static !important; } }
+  fieldset { border:1px solid var(--border); background:var(--surface-1);
+    border-radius:10px; margin:0 0 16px; padding:14px 16px 18px; }
+  legend { font-weight:600; font-size:14px; padding:0 6px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px 16px; }
+  label { display:flex; flex-direction:column; font-size:12.5px; color:var(--ink-2); gap:4px; }
+  input, select { font:inherit; font-size:13.5px; padding:7px 8px; border:1px solid var(--grid);
+    border-radius:6px; background:#fff; color:var(--ink); min-width:0; }
+  input:focus, select:focus { outline:2px solid var(--neg); outline-offset:-1px; border-color:transparent; }
+  .result { background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
+    padding:20px 22px; position:sticky; top:16px; }
+  .result h2 { font-size:15px; margin:0 0 2px; color:var(--ink-2); font-weight:600; }
+  .hero { font-size:52px; font-weight:700; line-height:1.1; }
+  .hero small { font-size:16px; font-weight:400; color:var(--muted); }
+  .meter { position:relative; height:14px; background:var(--grid); border-radius:7px;
+    margin:14px 0 6px; }
+  .meter-fill { position:absolute; inset:0 auto 0 0; border-radius:7px 4px 4px 7px;
+    background:var(--neg); min-width:4px; transition:width .25s; }
+  .meter-cut { position:absolute; top:-5px; bottom:-5px; width:2px; background:var(--ink-2); }
+  .meter-labels { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); }
+  .decision { display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:15px;
+    border-radius:8px; padding:8px 14px; margin:14px 0 4px; }
+  .decision.approve { background:#e7f4ea; color:#0a5c0a; }
+  .decision.flag { background:#fbe9e9; color:#8f2626; }
+  .why { margin-top:20px; }
+  .why h3 { font-size:13.5px; margin:0 0 2px; color:var(--ink-2); }
+  .why p { font-size:12px; color:var(--muted); margin:0 0 12px; }
+  .factor { display:grid; grid-template-columns: 128px 1fr; gap:8px; align-items:center;
+    margin-bottom:7px; }
+  .factor .name { font-size:12px; color:var(--ink-2); text-align:right; line-height:1.25; }
+  .factor .track { position:relative; height:14px; }
+  .factor .track::before { content:""; position:absolute; left:50%; top:-2px; bottom:-2px;
+    width:1px; background:var(--baseline); }
+  .factor .bar { position:absolute; top:0; height:14px; }
+  .factor .bar.up   { left:50%; background:var(--pos); border-radius:0 4px 4px 0; }
+  .factor .bar.down { right:50%; background:var(--neg); border-radius:4px 0 0 4px; }
+  .legend { display:flex; gap:16px; font-size:11.5px; color:var(--ink-2); margin-top:10px; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; }
+  footer { color:var(--muted); font-size:12px; margin-top:22px; max-width:80ch; line-height:1.5; }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap">
+  <h1>Claim Simulator</h1>
+  <p class="sub">Test the warranty claim model with your own inputs &middot;
+     <a href="index.html">back to the performance dashboard</a></p>
+  <p class="lede">Fill in a claim below - or load one of the real examples - and the model
+     scores it instantly, exactly as the trained pipeline would. The score updates as you
+     change any field, so you can experiment: remove the police report, raise the claim
+     amount, change the severity, and watch how the suspicion score responds.</p>
+
+  <div class="examples">
+    <span>Load a real claim from the test set:</span>
+    <button data-ex="0">High-risk claim</button>
+    <button data-ex="1">Borderline claim</button>
+    <button data-ex="2">Typical valid claim</button>
+    <button data-ex="reset">Reset to averages</button>
+  </div>
+
+  <div class="cols">
+    <form id="claimform" onsubmit="return false"><fieldset><legend>Customer & policy</legend><div class='grid'><label>Customer age<input id="f_age" data-col="age" type="number" step="any" value="38"></label><label>Customer sex<select id="f_insured_sex" data-col="insured_sex"><option value="FEMALE" selected>FEMALE</option><option value="MALE">MALE</option></select></label><label>Education level<select id="f_insured_education_level" data-col="insured_education_level"><option value="Associate">Associate</option><option value="College">College</option><option value="High School">High School</option><option value="JD" selected>JD</option><option value="MD">MD</option><option value="Masters">Masters</option><option value="PhD">PhD</option></select></label><label>Occupation<select id="f_insured_occupation" data-col="insured_occupation"><option value="adm-clerical">adm-clerical</option><option value="armed-forces">armed-forces</option><option value="craft-repair">craft-repair</option><option value="exec-managerial">exec-managerial</option><option value="farming-fishing">farming-fishing</option><option value="handlers-cleaners">handlers-cleaners</option><option value="machine-op-inspct" selected>machine-op-inspct</option><option value="other-service">other-service</option><option value="priv-house-serv">priv-house-serv</option><option value="prof-specialty">prof-specialty</option><option value="protective-serv">protective-serv</option><option value="sales">sales</option><option value="tech-support">tech-support</option><option value="transport-moving">transport-moving</option></select></label><label>Relationship status<select id="f_insured_relationship" data-col="insured_relationship"><option value="husband">husband</option><option value="not-in-family">not-in-family</option><option value="other-relative">other-relative</option><option value="own-child" selected>own-child</option><option value="unmarried">unmarried</option><option value="wife">wife</option></select></label><label>Months as customer<input id="f_months_as_customer" data-col="months_as_customer" type="number" step="any" value="199.5"></label><label>Policy state<select id="f_policy_state" data-col="policy_state"><option value="IL">IL</option><option value="IN">IN</option><option value="OH" selected>OH</option></select></label><label>Policy CSL (liability limits)<select id="f_policy_csl" data-col="policy_csl"><option value="100/300">100/300</option><option value="250/500" selected>250/500</option><option value="500/1000">500/1000</option></select></label><label>Policy deductible ($)<input id="f_policy_deductable" data-col="policy_deductable" type="number" step="any" value="1000"></label><label>Annual premium ($)<input id="f_policy_annual_premium" data-col="policy_annual_premium" type="number" step="any" value="1257.2"></label><label>Umbrella limit ($)<input id="f_umbrella_limit" data-col="umbrella_limit" type="number" step="any" value="0"></label><label>Capital gains ($)<input id="f_capital_gains" data-col="capital-gains" type="number" step="any" value="0"></label><label>Capital loss ($, negative)<input id="f_capital_loss" data-col="capital-loss" type="number" step="any" value="-23250"></label></div></fieldset><fieldset><legend>Incident</legend><div class='grid'><label>Incident type<select id="f_incident_type" data-col="incident_type"><option value="Multi-vehicle Collision" selected>Multi-vehicle Collision</option><option value="Parked Car">Parked Car</option><option value="Single Vehicle Collision">Single Vehicle Collision</option><option value="Vehicle Theft">Vehicle Theft</option></select></label><label>Collision type<select id="f_collision_type" data-col="collision_type"><option value="Front Collision">Front Collision</option><option value="Rear Collision" selected>Rear Collision</option><option value="Side Collision">Side Collision</option><option value="UNKNOWN">UNKNOWN</option></select></label><label>Incident severity<select id="f_incident_severity" data-col="incident_severity"><option value="Major Damage">Major Damage</option><option value="Minor Damage" selected>Minor Damage</option><option value="Total Loss">Total Loss</option><option value="Trivial Damage">Trivial Damage</option></select></label><label>Authorities contacted<select id="f_authorities_contacted" data-col="authorities_contacted"><option value="Ambulance">Ambulance</option><option value="Fire">Fire</option><option value="Other">Other</option><option value="Police" selected>Police</option><option value="UNKNOWN">UNKNOWN</option></select></label><label>Incident state<select id="f_incident_state" data-col="incident_state"><option value="NC">NC</option><option value="NY" selected>NY</option><option value="OH">OH</option><option value="PA">PA</option><option value="SC">SC</option><option value="VA">VA</option><option value="WV">WV</option></select></label><label>Incident city<select id="f_incident_city" data-col="incident_city"><option value="Arlington">Arlington</option><option value="Columbus">Columbus</option><option value="Hillsdale">Hillsdale</option><option value="Northbend">Northbend</option><option value="Northbrook">Northbrook</option><option value="Riverwood">Riverwood</option><option value="Springfield" selected>Springfield</option></select></label><label>Hour of incident (0-23)<input id="f_incident_hour_of_the_day" data-col="incident_hour_of_the_day" type="number" step="any" value="12"></label><label>Vehicles involved<input id="f_number_of_vehicles_involved" data-col="number_of_vehicles_involved" type="number" step="any" value="1"></label><label>Bodily injuries<input id="f_bodily_injuries" data-col="bodily_injuries" type="number" step="any" value="1"></label><label>Witnesses<input id="f_witnesses" data-col="witnesses" type="number" step="any" value="1"></label><label>Property damage confirmed?<select id="f_property_damage" data-col="property_damage"><option value="NO">NO</option><option value="UNKNOWN" selected>UNKNOWN</option><option value="YES">YES</option></select></label><label>Police report available?<select id="f_police_report_available" data-col="police_report_available"><option value="NO" selected>NO</option><option value="UNKNOWN">UNKNOWN</option><option value="YES">YES</option></select></label></div></fieldset><fieldset><legend>Vehicle & claim amounts</legend><div class='grid'><label>Vehicle make<select id="f_auto_make" data-col="auto_make"><option value="Accura">Accura</option><option value="Audi">Audi</option><option value="BMW">BMW</option><option value="Chevrolet">Chevrolet</option><option value="Dodge" selected>Dodge</option><option value="Ford">Ford</option><option value="Honda">Honda</option><option value="Jeep">Jeep</option><option value="Mercedes">Mercedes</option><option value="Nissan">Nissan</option><option value="Saab">Saab</option><option value="Suburu">Suburu</option><option value="Toyota">Toyota</option><option value="Volkswagen">Volkswagen</option></select></label><label>Vehicle model<select id="f_auto_model" data-col="auto_model"><option value="3 Series">3 Series</option><option value="92x">92x</option><option value="93">93</option><option value="95">95</option><option value="A3">A3</option><option value="A5">A5</option><option value="Accord">Accord</option><option value="C300">C300</option><option value="CRV">CRV</option><option value="Camry">Camry</option><option value="Civic">Civic</option><option value="Corolla">Corolla</option><option value="E400">E400</option><option value="Escape">Escape</option><option value="F150">F150</option><option value="Forrestor">Forrestor</option><option value="Fusion">Fusion</option><option value="Grand Cherokee">Grand Cherokee</option><option value="Highlander">Highlander</option><option value="Impreza">Impreza</option><option value="Jetta">Jetta</option><option value="Legacy">Legacy</option><option value="M5">M5</option><option value="MDX">MDX</option><option value="ML350">ML350</option><option value="Malibu">Malibu</option><option value="Maxima">Maxima</option><option value="Neon">Neon</option><option value="Passat">Passat</option><option value="Pathfinder">Pathfinder</option><option value="RAM" selected>RAM</option><option value="RSX">RSX</option><option value="Silverado">Silverado</option><option value="TL">TL</option><option value="Tahoe">Tahoe</option><option value="Ultima">Ultima</option><option value="Wrangler">Wrangler</option><option value="X5">X5</option><option value="X6">X6</option></select></label><label>Vehicle year<input id="f_auto_year" data-col="auto_year" type="number" step="any" value="2005"></label><label>Injury claim ($)<input id="f_injury_claim" data-col="injury_claim" type="number" step="any" value="6775"></label><label>Property claim ($)<input id="f_property_claim" data-col="property_claim" type="number" step="any" value="6750"></label><label>Vehicle claim ($)<input id="f_vehicle_claim" data-col="vehicle_claim" type="number" step="any" value="42100"></label></div></fieldset></form>
+
+    <aside class="result">
+      <h2>Suspicion score</h2>
+      <div class="hero"><span id="score">-</span><small> / 100</small></div>
+      <div class="meter">
+        <div class="meter-fill" id="fill"></div>
+        <div class="meter-cut" id="cut"></div>
+      </div>
+      <div class="meter-labels"><span>0 - looks fine</span>
+        <span id="cutlab"></span><span>100 - very suspicious</span></div>
+      <div class="decision" id="decision"></div>
+      <div id="totalline" style="font-size:12.5px;color:var(--muted);margin-top:6px"></div>
+
+      <div class="why">
+        <h3>What's driving this score</h3>
+        <p>Top factors compared with a typical claim. Bars to the right raise suspicion,
+           bars to the left lower it.</p>
+        <div id="factors"></div>
+        <div class="legend">
+          <span><span class="dot" style="background:var(--pos)"></span>raises suspicion</span>
+          <span><span class="dot" style="background:var(--neg)"></span>lowers suspicion</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>This page runs the trained model's exact mathematics (logistic regression
+    coefficients exported from the saved pipeline) in your browser - scores match the
+    Python model to more than 9 decimal places. It is a prototype trained on public
+    auto-insurance data standing in for warranty data; scores are illustrative, not
+    adjudications. Factor impacts are log-odds contributions relative to the average
+    claim in the training data.</footer>
+</div>
+
+<script>
+const D = {"weights": {"intercept": -0.27535147713126606, "cat": {"policy_state": {"IL": -0.06722021658896218, "IN": -0.03527037113947705, "OH": 0.10226648475408726}, "policy_csl": {"100/300": -0.0014885320921473439, "250/500": 0.06090521860517657, "500/1000": -0.05964078948738123}, "insured_sex": {"FEMALE": 0.002546623203004432, "MALE": -0.0027707261773563994}, "insured_education_level": {"Associate": -0.09387666681016882, "College": -0.020452389328987935, "High School": 0.011553607084560704, "JD": 0.10011609596008132, "MD": 0.049131549954813634, "Masters": -0.048540767614600897, "PhD": 0.0018444677799501412}, "insured_occupation": {"adm-clerical": -0.04757808366332077, "armed-forces": 0.06361832381527197, "craft-repair": -0.0063452211150451295, "exec-managerial": 0.10937792425150383, "farming-fishing": 0.02521798478580808, "handlers-cleaners": -0.14065368053133198, "machine-op-inspct": 0.00812268039602297, "other-service": -0.0755615204054252, "priv-house-serv": -0.06748117082056741, "prof-specialty": -0.029564370158164578, "protective-serv": -0.012457731956288673, "sales": 0.017218467065033594, "tech-support": 0.006056330987449045, "transport-moving": 0.1498059643747025}, "insured_relationship": {"husband": -0.10707794250585324, "not-in-family": 0.051785787329870894, "other-relative": 0.08895455071847778, "own-child": -0.1368758258236127, "unmarried": 0.07603005050246665, "wife": 0.026959276804298653}, "incident_type": {"Multi-vehicle Collision": -0.005401132739976169, "Parked Car": 0.01018775287816452, "Single Vehicle Collision": 0.06215643826496365, "Vehicle Theft": -0.06716716137750388}, "collision_type": {"Front Collision": 0.0005031590026770079, "Rear Collision": 0.12240467412262161, "Side Collision": -0.06615252760031126, "UNKNOWN": -0.05697940849933933}, "incident_severity": {"Major Damage": 0.9828478525459062, "Minor Damage": -0.4941274411721779, "Total Loss": -0.32890994195562534, "Trivial Damage": -0.1600345723924552}, "authorities_contacted": {"Ambulance": 0.10470477542970164, "Fire": -0.03824024583409712, "Other": 0.08566099587300648, "Police": -0.07699248988649103, "UNKNOWN": -0.0753571385564718}, "incident_state": {"NC": 0.10882547754913205, "NY": -0.174827107341366, "OH": 0.06446458147127614, "PA": 0.053746906915421555, "SC": 0.14000664221454115, "VA": 0.08898225707154415, "WV": -0.281422860854901}, "incident_city": {"Arlington": 0.0883830599450954, "Columbus": 0.03063882909726337, "Hillsdale": 0.015489493764256962, "Northbend": -0.05931426953616465, "Northbrook": -0.018549178097333877, "Riverwood": -0.059832283411275, "Springfield": 0.0029602452638058567}, "property_damage": {"NO": -0.15647479094125827, "UNKNOWN": 0.10443778522068653, "YES": 0.051812902746219885}, "police_report_available": {"NO": 0.07800335459262464, "UNKNOWN": -0.022588537763440705, "YES": -0.05563891980353582}, "auto_make": {"Accura": -0.15196344930550995, "Audi": 0.11365747844659682, "BMW": 0.0850119936090915, "Chevrolet": -0.018809978597745677, "Dodge": -0.041744417909496845, "Ford": 0.026650611567649963, "Honda": 0.02866834333195132, "Jeep": -0.020353329733776505, "Mercedes": 0.08159083237320028, "Nissan": -0.08226140487681811, "Saab": -0.07340253175956919, "Suburu": -0.003710094186945601, "Toyota": 0.006762845179756858, "Volkswagen": 0.04967899888726333}, "auto_model": {"3 Series": -0.05977156742661072, "92x": -0.02662946825450809, "93": -0.02196951762282677, "95": -0.02480354588223433, "A3": 0.04780506066617363, "A5": 0.06585241778042326, "Accord": -0.013009845700684664, "C300": 0.01322488722489005, "CRV": -0.053730131903743254, "Camry": 0.000436763062750536, "Civic": 0.09540832093637922, "Corolla": -0.022854045354733017, "E400": 0.05690489319918227, "Escape": -0.01798674269548133, "F150": 0.07595679333043974, "Forrestor": 0.08572763452284703, "Fusion": -0.031319439067308434, "Grand Cherokee": 0.06218532398586062, "Highlander": 0.029180127471739346, "Impreza": 0.009923404221840664, "Jetta": 0.005426289572828087, "Legacy": -0.09936113293163329, "M5": 0.022645466826960337, "MDX": -0.04388823093605836, "ML350": 0.011461051949127903, "Malibu": -0.16065804001353104, "Maxima": 0.022569064744798785, "Neon": 0.014556087951245007, "Passat": 0.04425270931443522, "Pathfinder": -0.07367397490578081, "RAM": -0.05630050586074183, "RSX": -0.03599382724481288, "Silverado": 0.09228517010614329, "TL": -0.0720813911246387, "Tahoe": 0.04956289130964203, "Ultima": -0.0311564947158361, "Wrangler": -0.08253865371963716, "X5": 0.04105015571764903, "X6": 0.08108793849109285}}, "num": {"months_as_customer": {"w": 0.0001708748808581911, "b": -0.03477873408400383}, "age": {"w": 0.00029447221567171426, "b": -0.011481668003850587}, "policy_deductable": {"w": 0.00019508820685460246, "b": -0.2243514378827928}, "policy_annual_premium": {"w": 3.6183898176911605e-05, "b": -0.045417362243029044}, "umbrella_limit": {"w": 6.531599303877149e-08, "b": -0.07019292051899978}, "capital-gains": {"w": -4.777552699599124e-07, "b": 0.011812148695894196}, "capital-loss": {"w": 1.4982472393868398e-07, "b": 0.003931780312118379}, "incident_hour_of_the_day": {"w": -0.0062564343009152675, "b": 0.072532928328611}, "number_of_vehicles_involved": {"w": -0.028923307912381773, "b": 0.05298750009548341}, "bodily_injuries": {"w": 0.013896895335635302, "b": -0.013767190979169373}, "witnesses": {"w": 0.10230348574903428, "b": -0.15113634961324}, "total_claim_amount": {"w": 1.7073320522380876e-06, "b": -0.0896814859964573}, "injury_claim": {"w": 6.642803440151695e-06, "b": -0.04927543021191992}, "property_claim": {"w": 7.517030945831458e-07, "b": -0.005556088139762225}, "vehicle_claim": {"w": 2.874826865687814e-06, "b": -0.10843291137513733}, "vehicle_age": {"w": 0.016147518734617665, "b": -0.16175507767091002}, "tenure_years": {"w": 0.002050498570298299, "b": -0.03477873408400392}, "age_at_signup": {"w": -0.011347272684071865, "b": 0.24997537399779912}, "injury_share": {"w": -1.7780731398816083, "b": 0.24771534464706751}, "property_share": {"w": -0.038882255912912646, "b": 0.005397733687054368}, "vehicle_share": {"w": 1.239411396591898, "b": -0.8946824040628789}, "claim_per_premium": {"w": 0.0028396441186038335, "b": -0.12368991308626148}, "claim_vs_deductible": {"w": 0.002553915697363138, "b": -0.15795064502034142}, "net_capital": {"w": -1.7331340909556325e-07, "b": -0.00026313597191615715}, "night_incident": {"w": -0.08178413814249526, "b": 0.026389015240645134}}, "catCols": ["policy_state", "policy_csl", "insured_sex", "insured_education_level", "insured_occupation", "insured_relationship", "incident_type", "collision_type", "incident_severity", "authorities_contacted", "incident_state", "incident_city", "property_damage", "police_report_available", "auto_make", "auto_model"], "numCols": ["months_as_customer", "age", "policy_deductable", "policy_annual_premium", "umbrella_limit", "capital-gains", "capital-loss", "incident_hour_of_the_day", "number_of_vehicles_involved", "bodily_injuries", "witnesses", "total_claim_amount", "injury_claim", "property_claim", "vehicle_claim", "vehicle_age", "tenure_years", "age_at_signup", "injury_share", "property_share", "vehicle_share", "claim_per_premium", "claim_vs_deductible", "net_capital", "night_incident"]}, "threshold": 0.55, "options": {"insured_sex": ["FEMALE", "MALE"], "insured_education_level": ["Associate", "College", "High School", "JD", "MD", "Masters", "PhD"], "insured_occupation": ["adm-clerical", "armed-forces", "craft-repair", "exec-managerial", "farming-fishing", "handlers-cleaners", "machine-op-inspct", "other-service", "priv-house-serv", "prof-specialty", "protective-serv", "sales", "tech-support", "transport-moving"], "insured_relationship": ["husband", "not-in-family", "other-relative", "own-child", "unmarried", "wife"], "policy_state": ["IL", "IN", "OH"], "policy_csl": ["100/300", "250/500", "500/1000"], "incident_type": ["Multi-vehicle Collision", "Parked Car", "Single Vehicle Collision", "Vehicle Theft"], "collision_type": ["Front Collision", "Rear Collision", "Side Collision", "UNKNOWN"], "incident_severity": ["Major Damage", "Minor Damage", "Total Loss", "Trivial Damage"], "authorities_contacted": ["Ambulance", "Fire", "Other", "Police", "UNKNOWN"], "incident_state": ["NC", "NY", "OH", "PA", "SC", "VA", "WV"], "incident_city": ["Arlington", "Columbus", "Hillsdale", "Northbend", "Northbrook", "Riverwood", "Springfield"], "property_damage": ["NO", "UNKNOWN", "YES"], "police_report_available": ["NO", "UNKNOWN", "YES"], "auto_make": ["Accura", "Audi", "BMW", "Chevrolet", "Dodge", "Ford", "Honda", "Jeep", "Mercedes", "Nissan", "Saab", "Suburu", "Toyota", "Volkswagen"], "auto_model": ["3 Series", "92x", "93", "95", "A3", "A5", "Accord", "C300", "CRV", "Camry", "Civic", "Corolla", "E400", "Escape", "F150", "Forrestor", "Fusion", "Grand Cherokee", "Highlander", "Impreza", "Jetta", "Legacy", "M5", "MDX", "ML350", "Malibu", "Maxima", "Neon", "Passat", "Pathfinder", "RAM", "RSX", "Silverado", "TL", "Tahoe", "Ultima", "Wrangler", "X5", "X6"]}, "defaults": {"age": 38.0, "insured_sex": "FEMALE", "insured_education_level": "JD", "insured_occupation": "machine-op-inspct", "insured_relationship": "own-child", "months_as_customer": 199.5, "policy_state": "OH", "policy_csl": "250/500", "policy_deductable": 1000.0, "policy_annual_premium": 1257.1999999999998, "umbrella_limit": 0.0, "capital-gains": 0.0, "capital-loss": -23250.0, "incident_type": "Multi-vehicle Collision", "collision_type": "Rear Collision", "incident_severity": "Minor Damage", "authorities_contacted": "Police", "incident_state": "NY", "incident_city": "Springfield", "incident_hour_of_the_day": 12.0, "number_of_vehicles_involved": 1.0, "bodily_injuries": 1.0, "witnesses": 1.0, "property_damage": "UNKNOWN", "police_report_available": "NO", "auto_make": "Dodge", "auto_model": "RAM", "auto_year": 2005.0, "injury_claim": 6775.0, "property_claim": 6750.0, "vehicle_claim": 42100.0}, "makeModels": {"Accura": ["MDX", "RSX", "TL"], "Audi": ["A3", "A5"], "BMW": ["3 Series", "M5", "X5", "X6"], "Chevrolet": ["Malibu", "Silverado", "Tahoe"], "Dodge": ["Neon", "RAM"], "Ford": ["Escape", "F150", "Fusion"], "Honda": ["Accord", "CRV", "Civic"], "Jeep": ["Grand Cherokee", "Wrangler"], "Mercedes": ["C300", "E400", "ML350"], "Nissan": ["Maxima", "Pathfinder", "Ultima"], "Saab": ["92x", "93", "95"], "Suburu": ["Forrestor", "Impreza", "Legacy"], "Toyota": ["Camry", "Corolla", "Highlander"], "Volkswagen": ["Jetta", "Passat"]}, "catBaseline": {"policy_state": 0.00234355437313161, "policy_csl": 0.0029659971840431793, "insured_sex": 8.469043989736691e-05, "insured_education_level": 0.0022241322945908, "insured_occupation": 0.0027501156027314125, "insured_relationship": -0.003596918853633985, "incident_type": 0.01732802807501079, "collision_type": 0.0074695348999171615, "incident_severity": -0.010153002135176883, "authorities_contacted": -0.00038386830942116826, "incident_state": -0.047297872270168816, "incident_city": 0.001767092986595038, "property_damage": 0.00035661997066026643, "police_report_available": 0.0015366613540998397, "auto_make": -0.0024378914472663244, "auto_model": -0.002802746490264621}, "labels": {"months_as_customer": "Months as customer", "age": "Customer age", "policy_state": "Policy state", "policy_csl": "Policy CSL (liability limits)", "policy_deductable": "Policy deductible ($)", "policy_annual_premium": "Annual premium ($)", "umbrella_limit": "Umbrella limit ($)", "insured_sex": "Customer sex", "insured_education_level": "Education level", "insured_occupation": "Occupation", "insured_relationship": "Relationship status", "capital-gains": "Capital gains ($)", "capital-loss": "Capital loss ($, negative)", "incident_type": "Incident type", "collision_type": "Collision type", "incident_severity": "Incident severity", "authorities_contacted": "Authorities contacted", "incident_state": "Incident state", "incident_city": "Incident city", "incident_hour_of_the_day": "Hour of incident (0-23)", "number_of_vehicles_involved": "Vehicles involved", "property_damage": "Property damage confirmed?", "bodily_injuries": "Bodily injuries", "witnesses": "Witnesses", "police_report_available": "Police report available?", "injury_claim": "Injury claim ($)", "property_claim": "Property claim ($)", "vehicle_claim": "Vehicle claim ($)", "auto_make": "Vehicle make", "auto_model": "Vehicle model", "auto_year": "Vehicle year", "total_claim_amount": "Total claim amount", "vehicle_age": "Vehicle age", "tenure_years": "Customer tenure (years)", "age_at_signup": "Age when policy started", "injury_share": "Injury portion of the claim", "property_share": "Property portion of the claim", "vehicle_share": "Vehicle portion of the claim", "claim_per_premium": "Claim size vs annual premium", "claim_vs_deductible": "Claim size vs deductible", "net_capital": "Net capital (gains + losses)", "night_incident": "Night-time incident"}, "examples": [{"name": "High-risk claim", "values": {"age": 37.0, "insured_sex": "FEMALE", "insured_education_level": "High School", "insured_occupation": "sales", "insured_relationship": "wife", "months_as_customer": 231.0, "policy_state": "OH", "policy_csl": "250/500", "policy_deductable": 500.0, "policy_annual_premium": 920.81, "umbrella_limit": 0.0, "capital-gains": 0.0, "capital-loss": 0.0, "incident_type": "Single Vehicle Collision", "collision_type": "Rear Collision", "incident_severity": "Major Damage", "authorities_contacted": "Fire", "incident_state": "SC", "incident_city": "Hillsdale", "incident_hour_of_the_day": 14.0, "number_of_vehicles_involved": 1.0, "bodily_injuries": 2.0, "witnesses": 0.0, "property_damage": "YES", "police_report_available": "UNKNOWN", "auto_make": "Mercedes", "auto_model": "C300", "auto_year": 1997.0, "injury_claim": 0.0, "property_claim": 7910.0, "vehicle_claim": 63280.0}, "expected": 0.8869072635}, {"name": "Borderline claim", "values": {"age": 40.0, "insured_sex": "FEMALE", "insured_education_level": "JD", "insured_occupation": "protective-serv", "insured_relationship": "own-child", "months_as_customer": 240.0, "policy_state": "IN", "policy_csl": "100/300", "policy_deductable": 500.0, "policy_annual_premium": 1533.71, "umbrella_limit": 9000000.0, "capital-gains": 0.0, "capital-loss": -70900.0, "incident_type": "Multi-vehicle Collision", "collision_type": "Rear Collision", "incident_severity": "Total Loss", "authorities_contacted": "Fire", "incident_state": "VA", "incident_city": "Northbend", "incident_hour_of_the_day": 18.0, "number_of_vehicles_involved": 2.0, "bodily_injuries": 0.0, "witnesses": 2.0, "property_damage": "YES", "police_report_available": "UNKNOWN", "auto_make": "Ford", "auto_model": "Escape", "auto_year": 2008.0, "injury_claim": 6050.0, "property_claim": 12100.0, "vehicle_claim": 48400.0}, "expected": 0.5514738911}, {"name": "Typical valid claim", "values": {"age": 35.0, "insured_sex": "FEMALE", "insured_education_level": "MD", "insured_occupation": "adm-clerical", "insured_relationship": "not-in-family", "months_as_customer": 194.0, "policy_state": "IL", "policy_csl": "500/1000", "policy_deductable": 500.0, "policy_annual_premium": 1416.24, "umbrella_limit": 0.0, "capital-gains": 0.0, "capital-loss": 0.0, "incident_type": "Parked Car", "collision_type": "UNKNOWN", "incident_severity": "Minor Damage", "authorities_contacted": "UNKNOWN", "incident_state": "WV", "incident_city": "Northbend", "incident_hour_of_the_day": 7.0, "number_of_vehicles_involved": 1.0, "bodily_injuries": 1.0, "witnesses": 0.0, "property_damage": "YES", "police_report_available": "UNKNOWN", "auto_make": "Nissan", "auto_model": "Pathfinder", "auto_year": 2003.0, "injury_claim": 1080.0, "property_claim": 540.0, "vehicle_claim": 4320.0}, "expected": 0.1049962916}], "incidentYear": 2015};
+const W = D.weights;
+
+function val(col) {
+  const el = document.querySelector(`[data-col="${col}"]`);
+  return el.tagName === "SELECT" ? el.value : parseFloat(el.value) || 0;
+}
+
+function derive() {
+  const c = {};
+  document.querySelectorAll("[data-col]").forEach(el => c[el.dataset.col] = val(el.dataset.col));
+  const total = c.injury_claim + c.property_claim + c.vehicle_claim;
+  const nums = {
+    months_as_customer: c.months_as_customer, age: c.age,
+    policy_deductable: c.policy_deductable, policy_annual_premium: c.policy_annual_premium,
+    umbrella_limit: c.umbrella_limit, "capital-gains": c["capital-gains"],
+    "capital-loss": c["capital-loss"], incident_hour_of_the_day: c.incident_hour_of_the_day,
+    number_of_vehicles_involved: c.number_of_vehicles_involved,
+    bodily_injuries: c.bodily_injuries, witnesses: c.witnesses,
+    total_claim_amount: total, injury_claim: c.injury_claim,
+    property_claim: c.property_claim, vehicle_claim: c.vehicle_claim,
+    vehicle_age: Math.max(0, D.incidentYear - c.auto_year),
+    tenure_years: c.months_as_customer / 12,
+    age_at_signup: c.age - c.months_as_customer / 12,
+    injury_share: total ? c.injury_claim / total : 0,
+    property_share: total ? c.property_claim / total : 0,
+    vehicle_share: total ? c.vehicle_claim / total : 0,
+    claim_per_premium: c.policy_annual_premium ? total / c.policy_annual_premium : 0,
+    claim_vs_deductible: c.policy_deductable ? total / c.policy_deductable : 0,
+    "net_capital": c["capital-gains"] + c["capital-loss"],
+    night_incident: (c.incident_hour_of_the_day >= 22 || c.incident_hour_of_the_day <= 5) ? 1 : 0,
+  };
+  const cats = {};
+  for (const col of W.catCols) cats[col] = String(c[col]);
+  return { cats, nums, total };
+}
+
+function scoreClaim() {                       // exact mirror of the sklearn pipeline
+  const { cats, nums, total } = derive();
+  let z = W.intercept;
+  const contrib = [];
+  for (const col of W.catCols) {
+    const w = W.cat[col][cats[col]] ?? 0;
+    z += w;
+    contrib.push([col, w - D.catBaseline[col], cats[col]]);
+  }
+  for (const col of W.numCols) {
+    const w = W.num[col];
+    const v = w.w * nums[col] + w.b;          // centered: 0 = training average
+    z += v;
+    contrib.push([col, v, null]);
+  }
+  return { p: 1 / (1 + Math.exp(-z)), contrib, total };
+}
+
+function fmt(x) { return x.toLocaleString("en-US", {maximumFractionDigits: 0}); }
+
+function render() {
+  const { p, contrib, total } = scoreClaim();
+  document.getElementById("score").textContent = (p * 100).toFixed(1);
+  document.getElementById("fill").style.width = (p * 100) + "%";
+  const flag = p >= D.threshold;
+  const d = document.getElementById("decision");
+  d.className = "decision " + (flag ? "flag" : "approve");
+  d.innerHTML = flag ? "&#9873; Flag for review" : "&#10003; Auto-approve";
+  document.getElementById("totalline").textContent =
+    "Total claim amount: $" + fmt(total) +
+    (flag ? " - held for an adjuster before payout" : " - would be paid without review");
+
+  contrib.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const top = contrib.slice(0, 7);
+  const max = Math.max(...top.map(f => Math.abs(f[1])), 1e-9);
+  document.getElementById("factors").innerHTML = top.map(([col, v, catVal]) => {
+    const wpct = Math.abs(v) / max * 48;
+    const label = D.labels[col] + (catVal !== null ? ": " + catVal : "");
+    return `<div class="factor" title="log-odds impact ${v >= 0 ? "+" : ""}${v.toFixed(2)}">
+      <div class="name">${label}</div>
+      <div class="track"><div class="bar ${v >= 0 ? "up" : "down"}"
+           style="width:${wpct.toFixed(1)}%"></div></div></div>`;
+  }).join("");
+}
+
+function setValues(vals) {
+  for (const [col, v] of Object.entries(vals)) {
+    const el = document.querySelector(`[data-col="${col}"]`);
+    if (!el) continue;
+    if (col === "auto_make") { el.value = v; syncModels(); }
+    else el.value = v;
+  }
+  render();
+}
+
+function syncModels() {
+  const make = val("auto_make");
+  const sel = document.querySelector('[data-col="auto_model"]');
+  const cur = sel.value;
+  const models = D.makeModels[make] || D.options.auto_model;
+  sel.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join("");
+  if (models.includes(cur)) sel.value = cur;
+}
+
+document.getElementById("claimform").addEventListener("input", e => {
+  if (e.target.dataset.col === "auto_make") syncModels();
+  render();
+});
+document.querySelectorAll(".examples button").forEach(b =>
+  b.addEventListener("click", () => {
+    if (b.dataset.ex === "reset") setValues(D.defaults);
+    else setValues(D.examples[+b.dataset.ex].values);
+  }));
+
+const cutPct = D.threshold * 100;
+document.getElementById("cut").style.left = cutPct + "%";
+document.getElementById("cutlab").textContent =
+  "review if \u2265 " + cutPct.toFixed(0);
+syncModels();
+setValues(D.defaults);
+</script>
+</body>
+</html>

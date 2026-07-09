@@ -19,6 +19,7 @@ warranty-claims-model/
 ├── src/train.py               # CV model selection + cost-tuned threshold
 ├── src/predict.py             # score raw claims with the saved model
 ├── src/dashboard.py           # plain-English HTML performance dashboard
+├── src/build_tester.py        # interactive in-browser claim simulator
 ├── models/                    # saved {pipeline, threshold} (created by train.py)
 ├── reports/                   # metrics + cost report (created by train.py)
 └── requirements.txt
@@ -38,6 +39,7 @@ python src/explore.py                          # dataset overview
 python src/train.py                            # train + evaluate + tune threshold
 python src/predict.py claims.csv scored.csv    # score new raw claims
 python src/dashboard.py                        # build + open reports/dashboard.html
+python src/build_tester.py                     # build the claim simulator page
 ```
 
 ## Pipeline
